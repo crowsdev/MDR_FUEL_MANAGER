@@ -47,7 +47,6 @@
     </AdditionalFiles>
     <Content Include="Original.cs" />
     <Compile Include="Program.cs" />
-    <AdditionalFiles Include="Instructions.readme" />
     <AdditionalFiles Include="thumb.png" />
     <AdditionalFiles Include="MDK\whitelist.cache" />
   </ItemGroup>

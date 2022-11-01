@@ -22,28 +22,61 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        List<IMyAirVent> airVentList;
-        List<IMyGasTank> gasTankList;
-        List<IMyGasGenerator> gasGeneratorList;
-        List<ITerminalAction> gasGeneratorActions;
+        #region DeviceLists
+        List<IMyAirVent> _airVentList;
+        List<IMyAirVent> airVentList
+        {
+            get
+            {
+                if (_airVentList != null) return _airVentList;
+                _airVentList = new List<IMyAirVent>();
+                GridTerminalSystem.GetBlocksOfType<IMyAirVent>(_airVentList, null);
+                return _airVentList;
+            }
+        }
 
+        List<IMyGasTank> _gasTankList;
+        List<IMyGasTank> gasTankList
+        {
+            get
+            {
+                if (_gasTankList != null) return _gasTankList;
+                _gasTankList = new List<IMyGasTank>();
+                GridTerminalSystem.GetBlocksOfType<IMyGasTank>(_gasTankList, null);
+                return _gasTankList;
+            }
+        }
 
-        float LowOxygenAirVent;
-        double LowGasTanks;
+        List<IMyGasGenerator> _gasGeneratorList;
+        List<IMyGasGenerator> gasGeneratorList
+        {
+            get
+            {
+                if (_gasGeneratorList != null) return _gasGeneratorList;
+                _gasGeneratorList = new List<IMyGasGenerator>();
+                GridTerminalSystem.GetBlocksOfType<IMyGasGenerator>(_gasGeneratorList, null);
+                return _gasGeneratorList;
+            }
+        }
+        #endregion
 
+        #region Settings
+        float LowOxygenAirVent = 0.75f;
+        float FullOxygenAirVent = 0.9f;
+        double LowGasTanks = (double) 0.45;
+        double FullGasTanks = (double) 0.9;
+        #endregion
+
+        #region States
+        bool HasVentsOrTanks => (airVentList.Count > 0 && gasTankList.Count > 0);
+        bool LowStateDetected => HasVentsOrTanks ? (CheckAnyAirVentLow(airVentList) || CheckAnyGasTankLow(gasTankList)) : false;
+        bool GeneratorsRunning = false;
+        bool AllVentsAndTanksFull => HasVentsOrTanks ? (CheckAllAirVentsFull(airVentList) && CheckAllGasTanksFull(gasTankList)) : true;
+        #endregion
 
         public Program()
         {
             Runtime.UpdateFrequency = UpdateFrequency.Update100;
-
-            LowOxygenAirVent = 0.75f;
-            LowGasTanks = 0.45f;
-
-
-            airVentList = new List<IMyAirVent>();
-            gasTankList = new List<IMyGasTank>();
-            gasGeneratorList = new List<IMyGasGenerator>();
-            gasGeneratorActions = new List<ITerminalAction>();
         }
 
         public void Save()
@@ -58,37 +91,32 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-            GridTerminalSystem.GetBlocksOfType<IMyAirVent>(airVentList, null);
-            GridTerminalSystem.GetBlocksOfType<IMyGasTank>(gasTankList, null);
-            GridTerminalSystem.GetBlocksOfType<IMyGasGenerator>(gasGeneratorList, null);
-
-            if (CheckAirVents(airVentList) || CheckGasTanks(gasTankList))
+            if (!(GeneratorsRunning || !LowStateDetected))
             {
                 foreach (var gg in gasGeneratorList)
                 {
-
                     gg.Enabled = true;
                 }
+                GeneratorsRunning = true;
+                return;
             }
-            else if (ElseCheckAirVent(airVentList) && ElseCheckGasTank(gasTankList))
+
+
+            if (!(!GeneratorsRunning || !AllVentsAndTanksFull))
             {
                 foreach (var gg in gasGeneratorList)
                 {
                     gg.Enabled = false;
                 }
+                GeneratorsRunning = false;
             }
         }
 
-
-        private bool Func(IMyTerminalBlock arg)
+        bool CheckAnyAirVentLow(List<IMyAirVent> _myAirVents)
         {
-            if (arg.CustomName.Contains(@"[SUSS]")) return true;
-            return false;
-        }
+            bool LowVentDetected = false;
 
-        bool CheckAirVents(List<IMyAirVent> _myAirVents)
-        {
-            if (_myAirVents.Count == 0) return false;
+            if (_myAirVents.Count == 0) return LowVentDetected;
 
             foreach (var av in _myAirVents)
             {
@@ -104,16 +132,18 @@ namespace IngameScript
                     toLog = av.DetailedInfo;
                     Echo("DetailedInfo::" + toLog);
                     Echo("--------------------------------------------");
-                    return true;
+                    LowVentDetected = true;
                 }
             }
 
-            return false;
+            return LowVentDetected;
         }
 
-        bool CheckGasTanks(List<IMyGasTank> _myGasTanks)
+        bool CheckAnyGasTankLow(List<IMyGasTank> _myGasTanks)
         {
-            if (_myGasTanks.Count == 0) return false;
+            bool LowTanksDetected = false;
+
+            if (_myGasTanks.Count == 0) return LowTanksDetected;
 
             foreach (var gt in _myGasTanks)
             {
@@ -129,41 +159,47 @@ namespace IngameScript
                     toLog = gt.DetailedInfo;
                     Echo("DetailedInfo::" + toLog);
                     Echo("--------------------------------------------");
-                    return true;
+                    LowTanksDetected = true;
                 }
             }
 
-            return false;
+            return LowTanksDetected;
         }
 
-        bool ElseCheckAirVent(List<IMyAirVent> _myAirVents)
+        bool CheckAllAirVentsFull(List<IMyAirVent> _myAirVents)
         {
-            if (_myAirVents.Count == 0) return false;
+            bool bAllVentsFull = true;
+
+            if (_myAirVents.Count == 0) return bAllVentsFull;
 
             foreach (var av in _myAirVents)
             {
-                if (av.GetOxygenLevel() < 0.9f)
+                if (av.GetOxygenLevel() < FullOxygenAirVent)
                 {
-                    av.
-                    //return false;
+                    bAllVentsFull = false;
+                    return bAllVentsFull;
                 }
             }
 
-            return true;
-
+            return bAllVentsFull;
         }
 
-        bool ElseCheckGasTank(List<IMyGasTank> _myGasTanks)
+        bool CheckAllGasTanksFull(List<IMyGasTank> _myGasTanks)
         {
-            if (_myGasTanks.Count == 0) return false;
+            bool bAllTanksFull = true;
+
+            if (_myGasTanks.Count == 0) return bAllTanksFull;
 
             foreach (var gt in _myGasTanks)
             {
-                if (gt.FilledRatio < 0.9f) return false;
+                if (gt.FilledRatio < FullGasTanks)
+                {
+                    bAllTanksFull = false;
+                    return bAllTanksFull;
+                }
             }
 
-            return true;
-
+            return bAllTanksFull;
         }
     }
 }
